@@ -21,4 +21,4 @@ set_property(
     TARGET server
     PROPERTY FOLDER "examples")
 
-target_link_libraries(server Boost::http_io)
+target_link_libraries(server Boost::http_io Boost::mustache)

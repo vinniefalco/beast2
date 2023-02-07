@@ -14,6 +14,8 @@
 #include <iostream>
 #include <vector>
 
+#include "mustache_source.hpp"
+
 //#define LOGGING
 
 namespace asio = boost::asio;
