@@ -20,6 +20,8 @@
 #include <boost/beast2.hpp>
 #include <boost/capy/ex/system_context.hpp>
 #include <boost/http/string_body.hpp>
+
+#include <cstring>
 #include <boost/json/parse.hpp>
 #include <boost/json/serialize.hpp>
 #include <boost/http/brotli/decode.hpp>
@@ -287,8 +289,27 @@ public:
             sp);
         body_ = json::serialize(value);
         client_.req_.set_content_length(body_.size());
-        client_.sr_.start(
-            client_.req_, http::string_body(std::move(body_)));
+        client_.sr_.set_message(client_.req_);
+        client_.sr_.start_writes();
+        {
+            auto body = capy::const_buffer(
+                body_.data(), body_.size());
+            auto mbp = client_.sr_.stream_prepare();
+            std::size_t n = 0;
+            for(auto const& mb : mbp)
+            {
+                auto chunk =
+                    (std::min)(mb.size(), body.size());
+                if(chunk == 0)
+                    break;
+                std::memcpy(
+                    mb.data(), body.data(), chunk);
+                body += chunk;
+                n += chunk;
+            }
+            client_.sr_.stream_commit(n);
+        }
+        client_.sr_.stream_close();
 
         beast2::async_write(
             *client_.stream_, client_.sr_, std::move(self));

@@ -173,7 +173,8 @@ private:
     do_write()
     {
         // Prepare serializer
-        sr_.start(req_);
+        sr_.set_message(req_);
+        sr_.start();
 
         // Send the HTTP request to the remote host
         if(secure_)

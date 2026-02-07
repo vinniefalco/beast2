@@ -192,7 +192,8 @@ connect_http_proxy(
     auto serializer = http::serializer{};
     auto parser     = http::response_parser{};
 
-    serializer.start(request);
+    serializer.set_message(request);
+    serializer.start();
     co_await beast2::async_write(stream, serializer);
 
     parser.reset();

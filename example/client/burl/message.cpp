@@ -11,6 +11,8 @@
 
 #include <boost/http/field.hpp>
 
+#include <cstring>
+
 namespace capy = boost::capy;
 
 string_body::string_body(std::string body, std::string content_type)
@@ -72,16 +74,33 @@ message::start_serializer(
     http::serializer& serializer,
     http::request& request) const
 {
+    serializer.set_message(request);
     std::visit(
         [&](auto& f)
         {
             if constexpr(!std::is_same_v<decltype(f), const std::monostate&>)
             {
-                serializer.start(request, f.body());
+                serializer.start_writes();
+                auto body = f.body();
+                auto mbp = serializer.stream_prepare();
+                std::size_t n = 0;
+                for(auto const& mb : mbp)
+                {
+                    auto chunk =
+                        (std::min)(mb.size(), body.size());
+                    if(chunk == 0)
+                        break;
+                    std::memcpy(
+                        mb.data(), body.data(), chunk);
+                    body += chunk;
+                    n += chunk;
+                }
+                serializer.stream_commit(n);
+                serializer.stream_close();
             }
             else
             {
-                serializer.start(request);
+                serializer.start();
             }
         },
         body_);
