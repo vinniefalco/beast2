@@ -8,7 +8,7 @@
 //
 
 #include <boost/beast2/http_server.hpp>
-#include <boost/beast2/http_worker.hpp>
+#include <boost/http/server/http_worker.hpp>
 #include <boost/http/server/flat_router.hpp>
 #include <boost/capy/task.hpp>
 #include <boost/capy/cond.hpp>
@@ -46,7 +46,7 @@ struct http_server::impl
 struct http_server::
     worker
     : tcp_server::worker_base
-    , http_worker
+    , http::http_worker
 {
     corosio::io_context& ctx;
     capy::strand<corosio::io_context::executor_type> strand;
@@ -55,7 +55,8 @@ struct http_server::
     worker(
         corosio::io_context& ctx_,
         http_server* srv_)
-        : http_worker(
+        : http::http_worker(
+            sock,
             srv_->impl_->router,
             srv_->impl_->parser_cfg,
             srv_->impl_->serializer_cfg)
@@ -64,10 +65,6 @@ struct http_server::
         , sock(ctx_)
     {
         sock.open();
-
-        rp.req_body = capy::any_buffer_source(parser.source_for(sock));
-        rp.res_body = capy::any_buffer_sink(serializer.sink_for(sock));
-        stream = capy::any_read_stream(&sock);
     }
 
     corosio::tcp_socket& socket() override
