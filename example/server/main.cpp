@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2022 Vinnie Falco (vinnie dot falco at gmail dot com)
+// Copyright (c) 2022 Vinnie Falco (vinnie.falco@gmail.com)
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,6 +11,7 @@
 #include "serve_log_admin.hpp"
 #include <boost/http/field.hpp>
 #include <boost/http/server/router.hpp>
+#include <boost/http/server/detail/dynamic_invoke.hpp>
 #include <boost/beast2/error.hpp>
 #include <boost/beast2/http_server.hpp>
 #include <boost/beast2/https_server.hpp>
@@ -21,6 +22,7 @@
 #include <boost/corosio/signal_set.hpp>
 #include <boost/http/json/json_sink.hpp>
 #include <boost/http/server/router.hpp>
+#include <boost/http/server/serve_index.hpp>
 #include <boost/http/server/serve_static.hpp>
 #include <boost/http/request_parser.hpp>
 #include <boost/http/serializer.hpp>
@@ -31,6 +33,8 @@
 #include <boost/http/zlib/deflate.hpp>
 #include <boost/http/zlib/inflate.hpp>
 #include <boost/json/parser.hpp>
+#include <boost/json/serialize.hpp>
+#include <boost/json/serializer.hpp>
 #include <boost/url/ipv4_address.hpp>
 #include <csignal>
 #include <iostream>
@@ -140,14 +144,30 @@ public:
     }
 };
 
-/*
-void test()
+struct transform
 {
-    beast2::app app;
-    app.use( "/", serve_static( "C:\\Users\\Vinnie\\www-root" ) );
-    app.listen(80, 443);
+    auto operator()( json::value(*fp)(json::value const&) ) const noexcept
+    {
+        return [fp]( http::route_params& rp ) -> http::route_task
+        {
+            json::value jv0;
+            auto jv = (*fp)(jv0);
+            std::string s = json::serialize(jv);
+            auto [ec, n] = co_await rp.res_body.write_eof(capy::make_buffer(s));
+            if(ec)
+                co_return http::route_error(ec);
+            (void)n;
+            co_return http::route_done;
+        };
+    }
+};
+
+http::route_result do_json(
+    http::route_params&,
+    json::value const& )
+{
+    return http::route_done;
 }
-*/
 
 int server_main( int argc, char* argv[] )
 {
@@ -157,6 +177,7 @@ int server_main( int argc, char* argv[] )
         std::cerr << "Usage: " << argv[0] << " <num_workers> <doc_root>\n";
         return EXIT_FAILURE;
     }
+    auto root = argv[2];
 
     corosio::io_context ioc;
 
@@ -165,30 +186,9 @@ int server_main( int argc, char* argv[] )
     corosio::ipv4_address addr;
     corosio::endpoint ep(addr, 0);
 
-    http::router rr1;
-    rr1.use( https_redirect() );
-#if 0
-    rr1.use( "/api",
-        [&]( auto& rp ) -> http::route_task
-        {
-            if(rp.req.method() != http::method::post)
-                co_return http::route_next;
-            http::json_sink js;
-            auto [ec, n] = co_await capy::push_to(rp.req_body, js);
-            if(ec)
-                co_return http::route_error(ec);
-            json::value jv = js.release();
-            co_return http::route_next;
-        });
-    // app.get('/', (req, res) => res.send('Hello'));
-    rr1.use( "/", []( auto& rp ) -> http::route_task
-        {
-            auto [ec] = co_await rp.send("Hello");
-            (void)ec;
-            co_return http::route_done;
-        });
-#endif
-    http_server hs1(ioc, 40, std::move(rr1),
+    http::router r0;
+    r0.use( https_redirect() );
+    http_server hs1(ioc, 40, std::move(r0),
         http::make_parser_config(http::parser_config(true)),
         http::make_serializer_config(http::serializer_config()));
     auto ec = hs1.bind(corosio::endpoint(ep, 80));
@@ -202,11 +202,22 @@ int server_main( int argc, char* argv[] )
 #ifdef BOOST_COROSIO_HAS_OPENSSL
     corosio::tls_context tls;
     load_server_certificate(tls);
-    http::router rr2;
-    rr2.use( http::cors() );
-    rr2.use( "/", http::serve_static( argv[2] ) );
+
+    auto r = http::router().with_transform(
+        http::detail::dynamic_transform{});
+
+    http::serve_index::options idx_opts;
+    idx_opts.hidden      = true;
+    idx_opts.show_parent = true;
+    http::serve_static_options static_opts;
+    static_opts.dotfiles = http::dotfiles_policy::allow;
+
+    r.use( http::cors() );
+    r.use( http::serve_static(root, static_opts) );
+    r.use( http::serve_index(root, idx_opts) );
+
     https_server hs2(ioc, std::atoi(argv[1]), tls,
-        std::move(rr2),
+        std::move(r),
         http::make_parser_config(http::parser_config(true)),
         http::make_serializer_config(http::serializer_config()));
     ec = hs2.bind(corosio::endpoint(ep, 443));

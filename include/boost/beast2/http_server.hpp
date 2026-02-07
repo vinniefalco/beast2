@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2026 Vinnie Falco (vinnie dot falco at gmail dot com)
+// Copyright (c) 2026 Vinnie Falco (vinnie.falco@gmail.com)
 //
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -14,10 +14,10 @@
 #include <boost/corosio/tcp_server.hpp>
 #include <boost/corosio/io_context.hpp>
 #include <boost/http/config.hpp>
+#include <boost/http/server/router.hpp>
 #include <cstddef>
 
 namespace boost {
-namespace http { class route_params; template<class> class router; }
 namespace beast2 {
 
 /** An HTTP server for handling requests with coroutine-based I/O.
