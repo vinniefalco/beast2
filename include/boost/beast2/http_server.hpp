@@ -17,7 +17,7 @@
 #include <cstddef>
 
 namespace boost {
-namespace http { class flat_router; }
+namespace http { class route_params; template<class> class router; }
 namespace beast2 {
 
 /** An HTTP server for handling requests with coroutine-based I/O.
@@ -34,8 +34,8 @@ namespace beast2 {
     @par Example
     @code
     corosio::io_context ctx;
-    http::flat_router router;
-    router.add( http::verb::get, "/", my_handler );
+    http::router router;
+    router.add( http::method::get, "/", my_handler );
 
     http_server srv(
         ctx,
@@ -73,7 +73,7 @@ public:
     http_server(
         corosio::io_context& ctx,
         std::size_t num_workers,
-        http::flat_router router,
+        http::router<http::route_params> router,
         http::shared_parser_config parser_cfg,
         http::shared_serializer_config serializer_cfg);
 };

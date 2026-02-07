@@ -16,7 +16,7 @@
 namespace boost {
 namespace beast2 {
 
-http::router
+http::router<>
 serve_log_admin();
 
 } // beast2
